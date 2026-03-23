@@ -12,8 +12,9 @@ import (
 
 // ComicData holds the extracted information for the JSON response.
 type ComicData struct {
-	ImageURL string `json:"imageUrl"` // URL of the comic image
-	Title    string `json:"title"`    // Caption/title of the comic
+	Img      string `json:"img"`                // URL of the comic image for TRMNL markup
+	ImageURL string `json:"imageUrl,omitempty"` // Backward-compatible field for existing clients
+	Title    string `json:"title"`              // Caption/title of the comic
 }
 
 const targetURL = "https://www.thefarside.com/"
@@ -49,32 +50,38 @@ func fetchComicData() (*ComicData, error) {
 		return nil, fmt.Errorf("failed to parse HTML: %w", err)
 	}
 
-	// Find the first element with class "card-body"
-	cardBody := doc.Find(".card-body").First()
-	if cardBody.Length() == 0 {
-		return nil, fmt.Errorf("could not find element with class 'card-body'")
+	// Find the first image from the daily comic container.
+	img := doc.Find(".tfs-comic_image img").First()
+	if img.Length() == 0 {
+		// Fallback for legacy structure.
+		img = doc.Find(".card-body img").First()
+	}
+	if img.Length() == 0 {
+		return nil, fmt.Errorf("could not find comic image in '.tfs-comic_image img' or '.card-body img'")
 	}
 
-	// Find the image within the card-body and get its data-src
-	img := cardBody.Find("img")
+	// Prefer lazy-load URL in data-src, then fallback to src.
 	imgSrc, exists := img.Attr("data-src")
 	if !exists || imgSrc == "" {
-		// Fallback: Sometimes it might use 'src' directly if JS hasn't run
-		// or if the structure changes slightly. Check 'src' as well.
 		imgSrc, exists = img.Attr("src")
 		if !exists || imgSrc == "" {
-			return nil, fmt.Errorf("could not find img with 'data-src' or 'src' attribute within card-body")
+			return nil, fmt.Errorf("could not find img with 'data-src' or 'src' attribute")
 		}
 	}
 
-	// Find the figure caption within the card-body and get its text
-	caption := cardBody.Find(".figure-caption").First()
-	if caption.Length() == 0 {
-		return nil, fmt.Errorf("could not find element with class 'figure-caption' within card-body")
+	// Get caption text if present, then fallback to alt text.
+	title := strings.TrimSpace(doc.Find(".tfs-comic_image .figure-caption, .card-body .figure-caption, .figure-caption").First().Text())
+	if title == "" {
+		if alt, ok := img.Attr("alt"); ok {
+			title = strings.TrimSpace(alt)
+		}
 	}
-	title := strings.TrimSpace(caption.Text()) // Trim whitespace
+	if title == "" {
+		title = "The Far Side Daily Dose"
+	}
 
 	data := &ComicData{
+		Img:      imgSrc,
 		ImageURL: imgSrc,
 		Title:    title,
 	}
