@@ -26,7 +26,7 @@ Choose the Polling strategy from the Strategy dropdown menu.
 In the Polling URL field, enter this URL (Or the Server Created in Stage 0):
 
 ```
-https://farapi.urlxl.com/
+https://yoururl.com
 ```
 
 Click Save. Once it is saved, the 'Edit Markup' button is now available.
